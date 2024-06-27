@@ -1,2 +1,1 @@
-# react-render-wave
-A compact React hook that makes rendering large datasets effortless.
+![ShowCase](https://sudo-ezekiel.github.io/images/RenderWave/showcase.png)
