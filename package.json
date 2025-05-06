@@ -12,7 +12,6 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "unpkg": "dist/index.umd.js",
   "scripts": {
     "build": "tsc && cp dist/index.js dist/index.esm.js"
   },

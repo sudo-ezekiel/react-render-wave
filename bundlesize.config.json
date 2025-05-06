@@ -1,8 +1,0 @@
-{
-  "files": [
-    {
-      "path": "dist/index.umd.production.min.js",
-      "maxSize": "4.5 kB"
-    }
-  ]
-}
