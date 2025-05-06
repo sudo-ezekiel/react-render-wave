@@ -1,1 +1,1 @@
-export { default } from "./useRenderWave";
+export * from './useRenderWave';

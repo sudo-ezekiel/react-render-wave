@@ -1,0 +1,6 @@
+example/
+*.test.ts
+*.test.tsx
+vite.config.ts
+public/
+tsconfig.build.json

@@ -1,1 +1,5 @@
-export { default as useRenderWave } from "./useRenderWave";
+export {
+  RenderWave,
+  useRenderWave,
+  useVirtualScrollCore,
+} from "./useRenderWave";
