@@ -1,6 +1,6 @@
 {
   "name": "react-render-wave",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A compact React hook and component for progressive rendering of large datasets with optional scroll virtualization.",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
