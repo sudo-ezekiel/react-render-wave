@@ -5,9 +5,6 @@ node_modules/
 dist/
 pkg/
 
-# Storybook build
-storybook-static/
-
 # System files
 .DS_Store
 Thumbs.db

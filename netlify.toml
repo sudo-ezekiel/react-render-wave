@@ -1,6 +1,0 @@
-[build]
-  command = "./build.sh"
-  publish = "storybook-static"
-
-[build.environment]
-  CARGO_HOME = "/opt/build/cache/.cargo"
