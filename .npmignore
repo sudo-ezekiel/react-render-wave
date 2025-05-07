@@ -1,6 +1,14 @@
-example/
-*.test.ts
-*.test.tsx
-vite.config.ts
-public/
-tsconfig.build.json
+# Ignore Rust artifacts
+wasm/target/
+wasm/Cargo.*
+wasm/src/
+
+# Ignore Storybook and local/dev files
+.storybook/
+*.log
+node_modules/
+.vscode/
+*.tsbuildinfo
+
+# Optionally ignore source if you're only publishing dist/
+src/
