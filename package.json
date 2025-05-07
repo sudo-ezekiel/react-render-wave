@@ -50,9 +50,7 @@
     "storybook": "8.6.12",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vite-plugin-wasm": "^3.4.1"
-  },
-  "dependencies": {
+    "vite-plugin-wasm": "^3.4.1",
     "@storybook/addons": "^7.6.17"
   }
 }
