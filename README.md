@@ -22,11 +22,11 @@ React Render Wave helps you break rendering into small, timed batches to keep yo
 
 ## 📦 Installation
 
-````bash
+```bash
 npm install react-render-wave
 # or
 yarn add react-render-wave
-
+```
 
 
 ## 🧪 Basic Usage
@@ -44,7 +44,7 @@ const items = Array.from({ length: 1000 }, (_, i) => `Item ${i}`);
     <div key={index}>{item}</div>
   )}
 />
-````
+```
 
 ## 🔁 Virtual Scroll Usage
 
@@ -82,3 +82,4 @@ import { VirtualRenderWave } from 'react-render-wave';
 - ⬜ Sticky headers
 
 - ⬜ Rust/Wasm acceleration (experimental)
+
