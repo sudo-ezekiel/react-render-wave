@@ -9,8 +9,14 @@ const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-essentials"],
   viteFinal: async (config) => {
+    // Ensure Vite uses 'esnext' for top-level await support
+    config.esbuild = config.esbuild || {};
+    config.esbuild.target = 'esnext'; // Allow top-level await
+
+    // Add wasm plugin if not already added
     config.plugins = config.plugins || [];
     config.plugins.push(viteWasm());
+
     return config;
   },
 };

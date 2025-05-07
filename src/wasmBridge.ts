@@ -1,5 +1,5 @@
 import initWasmModule from "../pkg/react_render_wave_wasm_bg.wasm?init";
-import * as wasm from "../pkg/react_render_wave_wasm";
+import * as wasm from "../pkg/react_render_wave_wasm.js";
 
 let initialized = false;
 let wasmAvailable = false;
