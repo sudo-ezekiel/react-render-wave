@@ -1,4 +1,5 @@
-import type { StorybookConfig } from "@storybook/react-vite";
+import { StorybookConfig } from "@storybook/react-vite";
+import viteWasm from "vite-plugin-wasm";
 
 const config: StorybookConfig = {
   framework: {
@@ -7,8 +8,10 @@ const config: StorybookConfig = {
   },
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-essentials"],
-  typescript: {
-    reactDocgen: false,
+  viteFinal: async (config) => {
+    config.plugins = config.plugins || [];
+    config.plugins.push(viteWasm());
+    return config;
   },
 };
 

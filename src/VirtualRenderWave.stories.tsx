@@ -1,9 +1,7 @@
 import React, { useRef, useState } from "react";
-import {
-  VirtualRenderWave,
-  VirtualRenderWaveProps,
-  VirtualRenderWaveHandle,
-} from "./VirtualRenderWave";
+import { VirtualRenderWave } from "./VirtualRenderWave";
+
+import { VirtualRenderWaveProps, VirtualRenderWaveHandle } from "./types";
 
 export default {
   title: "Components/VirtualRenderWave",
@@ -70,7 +68,7 @@ const Template = (args: VirtualRenderWaveProps<string>) => (
   </div>
 );
 
-export const Playground:any = Template.bind({});
+export const Playground: any = Template.bind({});
 Playground.args = {
   items,
   itemHeight: 40,

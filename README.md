@@ -77,9 +77,9 @@ import { VirtualRenderWave } from 'react-render-wave';
 
 - ✅ Snap-to-batch scroll
 
-- ⬜ Focus/scroll-to-element API
+- ✅ Focus/scroll-to-element API
 
-- ⬜ Sticky headers
+- ✅ Sticky headers
 
 - ⬜ Rust/Wasm acceleration (experimental)
 

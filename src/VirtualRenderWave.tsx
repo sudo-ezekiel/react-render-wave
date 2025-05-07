@@ -10,40 +10,38 @@ import React, {
 import { useRenderWave } from "./useRenderWave";
 import { useVirtualScrollCore } from "./useVirtualScrollCore";
 
-export interface VirtualRenderWaveHandle {
-  scrollTo: (index: number) => void;
-  scrollToOffset: (px: number) => void;
-  getVisibleIndexes: () => number[];
+import {
+  initWasm,
+  getVisibleIndexesSafe,
+  snapToOffsetSafe,
+  computeScrollTargetSafe,
+} from "./wasmBridge";
+
+import {
+  VirtualRenderWaveHandle,
+  WrapperProps,
+  HTMLTag,
+  VirtualRenderWaveProps,
+} from "./types";
+
+function getGroupLabel<T>(
+  item: T,
+  groupByKey?: keyof T | ((item: T) => string)
+): string | undefined {
+  if (!groupByKey) return undefined;
+  return typeof groupByKey === "function"
+    ? groupByKey(item)
+    : (item[groupByKey] as string);
 }
 
-export interface WrapperProps {
-  ref: React.RefObject<HTMLElement | null>;
-  style: React.CSSProperties;
-  className?: string;
-  children: React.ReactNode;
-}
-
-type HTMLTag = keyof JSX.IntrinsicElements & keyof HTMLElementTagNameMap;
-
-export interface VirtualRenderWaveProps<T> {
-  items: T[];
-  itemHeight: number;
-  containerHeight?: number;
-  batchSize?: number;
-  interval?: number;
-  overscan?: number;
-  startIndex?: number;
-  className?: string;
-  style?: React.CSSProperties;
-  renderItem: (item: T, index: number) => React.ReactNode;
-  renderSkeleton?: (index: number) => React.ReactNode;
-  scrollToIndex?: number;
-  outerElement?: HTMLTag | React.FC<WrapperProps>;
-  innerElement?: HTMLTag | React.FC<WrapperProps>;
-  transition?: boolean;
-  snapToBatch?: boolean;
-  onEndReached?: () => void;
-  keyboardNavigation?: boolean;
+function getCurrentGroup<T>(
+  scrollTop: number,
+  itemHeight: number,
+  items: T[],
+  groupByKey?: keyof T | ((item: T) => string)
+): string | undefined {
+  const currentIndex = Math.floor(scrollTop / itemHeight);
+  return getGroupLabel(items[currentIndex], groupByKey);
 }
 
 function VirtualRenderWaveInner<T>(
@@ -66,9 +64,16 @@ function VirtualRenderWaveInner<T>(
     snapToBatch = false,
     onEndReached,
     keyboardNavigation = false,
+    renderStickyHeader,
+    groupByKey,
   }: VirtualRenderWaveProps<T>,
   ref: React.Ref<VirtualRenderWaveHandle>
 ): JSX.Element {
+  // Initialize WASM module on mount
+  useEffect(() => {
+    initWasm();
+  }, []);
+
   const { outerContainerRef, innerContainerRef, scrollToOffset, scrollToItem } =
     useVirtualScrollCore<HTMLDivElement, HTMLDivElement>({
       itemCount: items.length,
@@ -96,13 +101,12 @@ function VirtualRenderWaveInner<T>(
   useImperativeHandle(ref, () => ({
     scrollTo: (index: number) => {
       const offset = index * itemHeight;
-      outerContainerRef.current?.scrollTo({ top: offset, behavior: 'smooth' });
+      outerContainerRef.current?.scrollTo({ top: offset, behavior: "smooth" });
     },
     scrollToOffset: (offset: number) => {
-      outerContainerRef.current?.scrollTo({ top: offset, behavior: 'smooth' });
+      outerContainerRef.current?.scrollTo({ top: offset, behavior: "smooth" });
     },
-    getVisibleIndexes: () =>
-      revealedIndexes.filter((i) => i >= start && i < end),
+    getVisibleIndexes: () => getVisibleIndexesSafe(start, end, revealedIndexes),
   }));
 
   useEffect(() => {
@@ -117,10 +121,11 @@ function VirtualRenderWaveInner<T>(
       if (snapToBatch) {
         if (snapTimeout) clearTimeout(snapTimeout);
         snapTimeout = setTimeout(() => {
-          const batchPixelSize = itemHeight * batchSize;
-          const targetIndex =
-            Math.round(el.scrollTop / batchPixelSize) * batchSize;
-          const targetOffset = targetIndex * itemHeight;
+          const targetOffset = snapToOffsetSafe(
+            el.scrollTop,
+            itemHeight,
+            batchSize
+          );
           el.scrollTo({ top: targetOffset, behavior: "smooth" });
         }, 150);
       }
@@ -136,29 +141,21 @@ function VirtualRenderWaveInner<T>(
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!keyboardNavigation) return;
-      if (!el.contains(document.activeElement)) return;
 
-      const scrollStep =
-        e.key === "PageUp" || e.key === "PageDown"
-          ? el.clientHeight
-          : itemHeight;
+      const el = outerContainerRef.current;
+      if (!el || !el.contains(document.activeElement)) return;
 
-      switch (e.key) {
-        case "ArrowDown":
-        case "PageDown":
-          el.scrollBy({ top: scrollStep, behavior: "smooth" });
-          break;
-        case "ArrowUp":
-        case "PageUp":
-          el.scrollBy({ top: -scrollStep, behavior: "smooth" });
-          break;
-        case "Home":
-          el.scrollTo({ top: 0, behavior: "smooth" });
-          break;
-        case "End":
-          el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-          break;
-      }
+      const maxScroll = el.scrollHeight - el.clientHeight;
+
+      const offset = computeScrollTargetSafe(
+        e.key,
+        el.scrollTop,
+        el.clientHeight,
+        itemHeight,
+        maxScroll
+      );
+
+      el.scrollTo({ top: offset, behavior: "smooth" });
     };
 
     const resizeObserver = new ResizeObserver(() => {
@@ -194,6 +191,8 @@ function VirtualRenderWaveInner<T>(
       outerContainerRef.current.scrollTo({ top: offset });
     }
   }, [scrollToIndex, itemHeight]);
+
+  const activeGroup = getCurrentGroup(scrollTop, itemHeight, items, groupByKey);
 
   const visibleItems = Array.from({ length: end - start }, (_, i) => {
     const index = start + i;
@@ -254,15 +253,32 @@ function VirtualRenderWaveInner<T>(
           height: containerHeight,
           ...style,
         },
-        children: renderElement(innerElement || "div", {
-          ref: innerContainerRef,
-          style: {
-            position: "relative",
-            height: items.length * itemHeight,
-            width: "100%",
-          },
-          children: visibleItems,
-        }),
+        children: (
+          <>
+            {renderStickyHeader && activeGroup && (
+              <div
+                style={{
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  background: "white",
+                  borderBottom: "1px solid #ddd",
+                }}
+              >
+                {renderStickyHeader(activeGroup)}
+              </div>
+            )}
+            {renderElement(innerElement || "div", {
+              ref: innerContainerRef,
+              style: {
+                position: "relative",
+                height: items.length * itemHeight,
+                width: "100%",
+              },
+              children: visibleItems,
+            })}
+          </>
+        ),
       })}
     </>
   );
