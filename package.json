@@ -36,9 +36,10 @@
     "@storybook/addon-controls": "^8.6.12",
     "@storybook/addon-essentials": "^8.6.12",
     "@storybook/addon-interactions": "8.6.12",
+    "@storybook/addon-links": "^8.6.12",
     "@storybook/addon-onboarding": "8.6.12",
     "@storybook/blocks": "8.6.12",
-    "@storybook/react": "8.6.12",
+    "@storybook/react": "^8.6.12",
     "@storybook/react-vite": "^8.6.12",
     "@storybook/test": "8.6.12",
     "@types/jest": "^29.5.14",
@@ -49,5 +50,8 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-wasm": "^3.4.1"
+  },
+  "dependencies": {
+    "@storybook/addons": "^7.6.17"
   }
 }

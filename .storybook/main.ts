@@ -7,7 +7,10 @@ const config: StorybookConfig = {
     options: {},
   },
   stories: ["../src/**/*.stories.@(ts|tsx)"],
-  addons: ["@storybook/addon-essentials"],
+  addons: [
+    '@storybook/addon-essentials',
+    '@storybook/addon-links',
+  ],
   viteFinal: async (config) => {
     // Ensure Vite uses 'esnext' for top-level await support
     config.esbuild = config.esbuild || {};
