@@ -31,7 +31,7 @@ yarn add react-render-wave
 
 ## 🧪 Basic Usage
 
-```bash
+```jsx
 import { RenderWave } from 'react-render-wave';
 
 const items = Array.from({ length: 1000 }, (_, i) => `Item ${i}`);
@@ -48,7 +48,7 @@ const items = Array.from({ length: 1000 }, (_, i) => `Item ${i}`);
 
 ## 🔁 Virtual Scroll Usage
 
-```bash
+```jsx
 import { VirtualRenderWave } from 'react-render-wave';
 
 <VirtualRenderWave
