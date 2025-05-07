@@ -4,3 +4,8 @@ declare module "*.wasm?init" {
   ) => Promise<any>;
   export default initWasm;
 }
+
+declare module "*.wasm?url" {
+  const url: string;
+  export default url;
+}

@@ -11,6 +11,7 @@
       "require": "./dist/index.js"
     }
   },
+  "files": ["dist", "dist/pkg"],
   "scripts": {
     "build": "tsc && cp dist/index.js dist/index.esm.js && npm run copy-wasm",
     "storybook": "storybook dev -p 6006",
