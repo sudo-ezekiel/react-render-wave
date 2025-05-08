@@ -19,7 +19,7 @@
     "build": "tsc && cp dist/index.js dist/index.esm.js && npm run copy-wasm",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "copy-wasm": "cp -r ./pkg ./dist/pkg"
+    "copy-wasm": "xcopy /E /I /Y src\\pkg dist\\pkg && echo !* > dist\\pkg\\.npmignore"
   },
   "keywords": [
     "react",
