@@ -1,0 +1,17 @@
+{
+  "name": "react_render_wave_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "react_render_wave_wasm_bg.wasm",
+    "react_render_wave_wasm.js",
+    "react_render_wave_wasm_bg.js",
+    "react_render_wave_wasm.d.ts"
+  ],
+  "main": "react_render_wave_wasm.js",
+  "types": "react_render_wave_wasm.d.ts",
+  "sideEffects": [
+    "./react_render_wave_wasm.js",
+    "./snippets/*"
+  ]
+}
