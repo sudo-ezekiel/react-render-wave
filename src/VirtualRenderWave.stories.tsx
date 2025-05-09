@@ -61,7 +61,7 @@ const headingStyle = {
   marginBottom: 16,
 };
 
-const Template = (args: VirtualRenderWaveProps<string>) => (
+const Template = (args: VirtualRenderWaveProps) => (
   <div style={storyStyle}>
     <h3 style={headingStyle}>🎛️ Playground</h3>
     <VirtualRenderWave {...args} />

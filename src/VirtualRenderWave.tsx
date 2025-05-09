@@ -22,11 +22,12 @@ import {
   WrapperProps,
   HTMLTag,
   VirtualRenderWaveProps,
+  GetItemType
 } from "./types";
 
 function getGroupLabel<T>(
-  item: T,
-  groupByKey?: keyof T | ((item: T) => string)
+  item: any,
+  groupByKey?: keyof GetItemType<T> | ((item: GetItemType<T>) => string)
 ): string | undefined {
   if (!groupByKey) return undefined;
   return typeof groupByKey === "function"
@@ -38,7 +39,7 @@ function getCurrentGroup<T>(
   scrollTop: number,
   itemHeight: number,
   items: T[],
-  groupByKey?: keyof T | ((item: T) => string)
+  groupByKey?: keyof GetItemType<T> | ((item: GetItemType<T>) => string)
 ): string | undefined {
   const currentIndex = Math.floor(scrollTop / itemHeight);
   return getGroupLabel(items[currentIndex], groupByKey);

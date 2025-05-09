@@ -15,7 +15,8 @@ export interface WrapperProps {
 
 export type HTMLTag = keyof JSX.IntrinsicElements & keyof HTMLElementTagNameMap;
 
-export interface VirtualRenderWaveProps<T> {
+export type GetItemType<T> = T extends (infer U)[] ? U : never;
+export interface VirtualRenderWaveProps<T = any> {
   items: T[];
   itemHeight: number;
   containerHeight?: number;
@@ -35,5 +36,5 @@ export interface VirtualRenderWaveProps<T> {
   onEndReached?: () => void;
   keyboardNavigation?: boolean;
   renderStickyHeader?: (group: string) => React.ReactNode;
-  groupByKey?: keyof T | ((item: T) => string);
+  groupByKey?: keyof GetItemType<T> | ((item: GetItemType<T>) => string);
 }
