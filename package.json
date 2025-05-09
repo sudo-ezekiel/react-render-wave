@@ -4,7 +4,7 @@
   "description": "A compact React hook and component for progressive rendering of large datasets with optional scroll virtualization.",
   "module": "dist/index.esm.js",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/types/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.esm.js",
@@ -12,14 +12,16 @@
     }
   },
   "files": [
-    "dist",
-    "dist/pkg"
+    "dist"
   ],
+  "type": "module",
   "scripts": {
-    "build": "tsc && cp dist/index.js dist/index.esm.js && npm run copy-wasm",
+    "build": "vite build && npm run build-types && npm run copy-wasm",
+    "build-types": "tsc",
+    "copy-wasm": "xcopy /E /I /Y src\\pkg dist\\pkg && echo !* > dist\\pkg\\.npmignore",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "copy-wasm": "xcopy /E /I /Y src\\pkg dist\\pkg && echo !* > dist\\pkg\\.npmignore"
+    "build-wasm": "cd wasm && wasm-pack build --target bundler --out-dir ../src/pkg"
   },
   "keywords": [
     "react",
@@ -35,6 +37,8 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
     "@babel/preset-env": "^7.27.2",
     "@babel/preset-react": "^7.27.1",
     "@babel/preset-typescript": "^7.27.1",
@@ -43,6 +47,7 @@
     "@storybook/addon-interactions": "8.6.12",
     "@storybook/addon-links": "^8.6.12",
     "@storybook/addon-onboarding": "8.6.12",
+    "@storybook/addons": "^7.6.17",
     "@storybook/blocks": "8.6.12",
     "@storybook/react": "^8.6.12",
     "@storybook/react-vite": "^8.6.12",
@@ -54,7 +59,6 @@
     "storybook": "8.6.12",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vite-plugin-wasm": "^3.4.1",
-    "@storybook/addons": "^7.6.17"
+    "vite-plugin-wasm": "^3.4.1"
   }
 }
