@@ -9,8 +9,8 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, "src/index.ts"),
       name: "ReactRenderWave",
-      fileName: (format) => `index.${format}.js`,
-      formats: ["es", "cjs"],
+      fileName: () => "index.es.js",
+      formats: ["es"],
     },
     rollupOptions: {
       external: ["react", "react-dom"],

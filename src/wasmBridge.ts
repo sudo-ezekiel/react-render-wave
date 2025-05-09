@@ -1,20 +1,21 @@
-import initWasmModule from "./pkg/react_render_wave_wasm_bg.wasm?url";
 import * as wasm from "./pkg/react_render_wave_wasm.js";
 
 let initialized = false;
 let wasmAvailable = false;
 
 export async function initWasm() {
-  if (!initialized) {
-    try {
-      await (wasm as any).default(initWasmModule);
-      initialized = true;
-      wasmAvailable = true;
-    } catch (err) {
-      console.warn("WASM init failed, falling back to JS:", err);
-      wasmAvailable = false;
-    }
+  if (initialized) return wasmAvailable;
+
+  try {
+    await import("./pkg/react_render_wave_wasm.js");
+    wasmAvailable = true;
+  } catch (err) {
+    console.warn("WASM init failed, falling back to JS:", err);
+    wasmAvailable = false;
   }
+
+  initialized = true;
+  return wasmAvailable;
 }
 
 export function getVisibleIndexesSafe(

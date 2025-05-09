@@ -97,6 +97,45 @@ import { VirtualRenderWave } from "react-render-wave";
 
 - ✅ Rust/Wasm acceleration (experimental) – leveraging Rust and WebAssembly for faster and safer data handling
 
+## 🧩 Roadmap (Planned Features – Priority Order)
+
+### 🚧 Core Usability Enhancements
+
+These features directly improve the developer and user experience and should likely be prioritized first:
+
+- 🔲 **AutoHeight support**
+  Automatically determines item height unless `itemHeight` is explicitly set.
+
+- 🔲 **AutoContainerHeight support**
+  Determines container height from parent or viewport if `containerHeight` is not provided.
+
+- 🔲 **Improved API design**
+  Refactor the component API for cleaner prop usage and better developer ergonomics.
+
+### 📱 Responsiveness & Layout Flexibility
+
+These will help React Render Wave adapt to more complex UI layouts:
+
+- 🔲 **Responsive layout support**
+  Allow layout to adapt to different screen sizes and orientations.
+
+- 🔲 **Table layout with children support & animations**
+  Support structured layouts like tables, with optional row expansion and transitions.
+
+### 🔄 Data Loading & Navigation Enhancements
+
+For infinite datasets, user-initiated actions, and full navigation control:
+
+- 🔲 **Infinite scroll support**
+  Add props for "load more" callbacks or sentinel-based auto-loading.
+
+### 📚 Developer Support
+
+These improve discoverability, learning curve, and adoption:
+
+- 🔲 **Documentation with real-world examples using Docusaurus**
+  Move from Storybook-only demos to full docs with guides, recipes, and use cases.
+
 ## 🌍 Contribute
 
 I welcome contributions! If you’d like to help improve React Render Wave, feel free to fork the repo and submit a pull request.
