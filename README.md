@@ -139,3 +139,7 @@ These improve discoverability, learning curve, and adoption:
 ## 🌍 Contribute
 
 I welcome contributions! If you’d like to help improve React Render Wave, feel free to fork the repo and submit a pull request.
+
+## 🙏 Acknowledgements
+
+Special thanks to [@sequencemedia](https://github.com/sequencemedia) for helping squash a tricky bug and making React Render Wave better. 👷‍♂️👏
