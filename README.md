@@ -97,17 +97,13 @@ import { VirtualRenderWave } from "react-render-wave";
 
 - ✅ Rust/Wasm acceleration (experimental) – leveraging Rust and WebAssembly for faster and safer data handling
 
+- ✅ AutoHeight support
+
+- ✅ AutoContainerHeight support
+
 ## 🧩 Roadmap (Planned Features – Priority Order)
 
 ### 🚧 Core Usability Enhancements
-
-These features directly improve the developer and user experience and should likely be prioritized first:
-
-- 🔲 **AutoHeight support**
-  Automatically determines item height unless `itemHeight` is explicitly set.
-
-- 🔲 **AutoContainerHeight support**
-  Determines container height from parent or viewport if `containerHeight` is not provided.
 
 - 🔲 **Improved API design**
   Refactor the component API for cleaner prop usage and better developer ergonomics.

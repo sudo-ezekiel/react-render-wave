@@ -28,7 +28,6 @@ export function useVirtualScrollCore<
   itemCount,
   itemSize = 45,
   horizontal = false,
-  preRenderedItemCount = 0,
 }: VirtualScrollOptions): VirtualScrollReturn<O, I> {
   const outerContainerRef = useRef<O>(null);
   const innerContainerRef = useRef<I>(null);

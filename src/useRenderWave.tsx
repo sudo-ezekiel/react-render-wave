@@ -17,7 +17,7 @@ export function useRenderWave({
   interval = 50,
   startIndex = 0,
 }: UseRenderWaveOptions): number[] {
-  const [count, setCount] = useState(startIndex);
+  const [count, setCount] = useState(startIndex + batchSize);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -38,10 +38,21 @@ export function useRenderWave({
 
     tick();
 
+    /*
+      Clean up any active timers or animation frames on unmount
+      Nulling the refs ensures we don't accidentally reuse stale handles
+      and helps prevent double-clear bugs during fast remounts or HMR
+    */
     return () => {
       isActive = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, [length, batchSize, interval]);
 
@@ -76,4 +87,3 @@ export function RenderWave<T>({
 
   return <>{indexes.map((i) => renderItem(items[i], i))}</>;
 }
-

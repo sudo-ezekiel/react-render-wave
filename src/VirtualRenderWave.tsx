@@ -6,6 +6,9 @@ import React, {
   useState,
   useImperativeHandle,
   forwardRef,
+  useCallback,
+  useLayoutEffect,
+  useRef,
 } from "react";
 import { useRenderWave } from "./useRenderWave";
 import { useVirtualScrollCore } from "./useVirtualScrollCore";
@@ -22,7 +25,7 @@ import {
   WrapperProps,
   HTMLTag,
   VirtualRenderWaveProps,
-  GetItemType
+  GetItemType,
 } from "./types";
 
 function getGroupLabel<T>(
@@ -37,12 +40,20 @@ function getGroupLabel<T>(
 
 function getCurrentGroup<T>(
   scrollTop: number,
-  itemHeight: number,
   items: T[],
+  itemHeights: Map<number, number>,
+  fallbackHeight: number,
   groupByKey?: keyof GetItemType<T> | ((item: GetItemType<T>) => string)
 ): string | undefined {
-  const currentIndex = Math.floor(scrollTop / itemHeight);
-  return getGroupLabel(items[currentIndex], groupByKey);
+  let offset = 0;
+  for (let i = 0; i < items.length; i++) {
+    const height = itemHeights.get(i) ?? fallbackHeight;
+    if (offset + height > scrollTop) {
+      return getGroupLabel(items[i], groupByKey);
+    }
+    offset += height;
+  }
+  return undefined;
 }
 
 function VirtualRenderWaveInner<T>(
@@ -75,6 +86,50 @@ function VirtualRenderWaveInner<T>(
     initWasm();
   }, []);
 
+  const [itemHeights, setItemHeights] = useState<Map<number, number>>(
+    new Map()
+  );
+  const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+
+  const getOffsetForIndex = useCallback(
+    (index: number) => {
+      let offset = 0;
+      for (let i = 0; i < index; i++) {
+        offset += itemHeights.get(i) ?? itemHeight;
+      }
+      return offset;
+    },
+    [itemHeights, itemHeight]
+  );
+
+  const getTotalHeight = useCallback(() => {
+    let total = 0;
+    for (let i = 0; i < items.length; i++) {
+      total += itemHeights.get(i) ?? itemHeight;
+    }
+    return total;
+  }, [itemHeights, items.length, itemHeight]);
+
+  useLayoutEffect(() => {
+    const newHeights = new Map<number, number>();
+    let hasChanges = false;
+
+    for (const [i, el] of itemRefs.current.entries()) {
+      const measured = el.offsetHeight;
+      const prev = itemHeights.get(i);
+      if (prev !== measured) {
+        hasChanges = true;
+        newHeights.set(i, measured);
+      } else {
+        newHeights.set(i, prev!);
+      }
+    }
+
+    if (hasChanges) {
+      setItemHeights(newHeights);
+    }
+  }, [items]);
+
   const { outerContainerRef, innerContainerRef, scrollToOffset, scrollToItem } =
     useVirtualScrollCore<HTMLDivElement, HTMLDivElement>({
       itemCount: items.length,
@@ -93,15 +148,33 @@ function VirtualRenderWaveInner<T>(
   const [containerClientHeight, setContainerClientHeight] =
     useState(containerHeight);
 
-  const start = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-  const end = Math.min(
-    items.length,
-    Math.ceil((scrollTop + containerClientHeight) / itemHeight) + overscan
-  );
+  const findStartIndex = (): number => {
+    let offset = 0;
+    for (let i = 0; i < items.length; i++) {
+      const height = itemHeights.get(i) ?? itemHeight;
+      if (offset + height > scrollTop) return Math.max(0, i - overscan);
+      offset += height;
+    }
+    return 0;
+  };
+
+  const findEndIndex = (): number => {
+    let offset = 0;
+    for (let i = 0; i < items.length; i++) {
+      const height = itemHeights.get(i) ?? itemHeight;
+      offset += height;
+      if (offset > scrollTop + containerClientHeight)
+        return Math.min(items.length, i + overscan);
+    }
+    return items.length;
+  };
+
+  const start = findStartIndex();
+  const end = findEndIndex();
 
   useImperativeHandle(ref, () => ({
     scrollTo: (index: number) => {
-      const offset = index * itemHeight;
+      const offset = getOffsetForIndex(index);
       outerContainerRef.current?.scrollTo({ top: offset, behavior: "smooth" });
     },
     scrollToOffset: (offset: number) => {
@@ -110,34 +183,42 @@ function VirtualRenderWaveInner<T>(
     getVisibleIndexes: () => getVisibleIndexesSafe(start, end, revealedIndexes),
   }));
 
+  // TODO: REFACTOR FOR DEV READABILITY
   useEffect(() => {
     const el = outerContainerRef.current;
     if (!el) return;
 
     let snapTimeout: NodeJS.Timeout | null = null;
+    let rafId: number | null = null;
 
     const handleScroll = () => {
-      setScrollTop(el.scrollTop);
+      if (rafId !== null) cancelAnimationFrame(rafId);
 
-      if (snapToBatch) {
-        if (snapTimeout) clearTimeout(snapTimeout);
-        snapTimeout = setTimeout(() => {
-          const targetOffset = snapToOffsetSafe(
-            el.scrollTop,
-            itemHeight,
-            batchSize
-          );
-          el.scrollTo({ top: targetOffset, behavior: "smooth" });
-        }, 150);
-      }
+      rafId = requestAnimationFrame(() => {
+        setScrollTop(el.scrollTop);
 
-      if (onEndReached) {
-        const reachedBottom =
-          el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
-        if (reachedBottom) {
-          onEndReached();
+        // Snap to nearest batch after scrolling stops
+        if (snapToBatch) {
+          if (snapTimeout) clearTimeout(snapTimeout);
+          snapTimeout = setTimeout(() => {
+            const targetOffset = snapToOffsetSafe(
+              el.scrollTop,
+              itemHeight,
+              batchSize
+            );
+            el.scrollTo({ top: targetOffset, behavior: "smooth" });
+          }, 150);
         }
-      }
+
+        // Trigger end-of-list callback
+        if (onEndReached) {
+          const reachedBottom =
+            el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+          if (reachedBottom) {
+            onEndReached();
+          }
+        }
+      });
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -167,15 +248,18 @@ function VirtualRenderWaveInner<T>(
     if (keyboardNavigation) window.addEventListener("keydown", handleKeyDown);
     resizeObserver.observe(el);
 
+    // Initial values
     setScrollTop(el.scrollTop);
     setContainerClientHeight(el.clientHeight);
 
     return () => {
       el.removeEventListener("scroll", handleScroll);
-      if (keyboardNavigation)
+      if (keyboardNavigation) {
         window.removeEventListener("keydown", handleKeyDown);
+      }
       resizeObserver.disconnect();
       if (snapTimeout) clearTimeout(snapTimeout);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [
     outerContainerRef,
@@ -187,13 +271,23 @@ function VirtualRenderWaveInner<T>(
   ]);
 
   useEffect(() => {
-    if (typeof scrollToIndex === "number" && outerContainerRef.current) {
-      const offset = scrollToIndex * itemHeight;
+    if (
+      typeof scrollToIndex === "number" &&
+      outerContainerRef.current &&
+      revealedIndexes.includes(scrollToIndex)
+    ) {
+      const offset = getOffsetForIndex(scrollToIndex);
       outerContainerRef.current.scrollTo({ top: offset });
     }
-  }, [scrollToIndex, itemHeight]);
+  }, [scrollToIndex, itemHeights, revealedIndexes]);
 
-  const activeGroup = getCurrentGroup(scrollTop, itemHeight, items, groupByKey);
+  const activeGroup = getCurrentGroup(
+    scrollTop,
+    items,
+    itemHeights,
+    itemHeight,
+    groupByKey
+  );
 
   const visibleItems = Array.from({ length: end - start }, (_, i) => {
     const index = start + i;
@@ -202,10 +296,13 @@ function VirtualRenderWaveInner<T>(
     return (
       <div
         key={index}
+        ref={(el) => {
+          if (el) itemRefs.current.set(index, el);
+        }}
         role="listitem"
         style={{
           position: "absolute",
-          top: index * itemHeight,
+          top: getOffsetForIndex(index),
           left: 0,
           right: 0,
           opacity: transition ? 0 : undefined,
@@ -273,7 +370,7 @@ function VirtualRenderWaveInner<T>(
               ref: innerContainerRef,
               style: {
                 position: "relative",
-                height: items.length * itemHeight,
+                height: getTotalHeight(),
                 width: "100%",
               },
               children: visibleItems,
