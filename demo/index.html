@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>react-render-wave demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #f6f7f9;
+        color: #1c1e21;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 32px 16px 64px;
+      }
+      h1 {
+        font-size: 26px;
+      }
+      section {
+        background: white;
+        border: 1px solid #e3e5e8;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 24px;
+      }
+      h2 {
+        margin-top: 0;
+        font-size: 18px;
+      }
+      p.hint {
+        color: #5b616b;
+        font-size: 14px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        align-items: center;
+        margin-bottom: 14px;
+        font-size: 14px;
+      }
+      .controls label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      input[type="number"] {
+        width: 90px;
+        padding: 4px 6px;
+      }
+      button {
+        padding: 5px 12px;
+        border: 1px solid #c9ccd1;
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #f0f1f3;
+      }
+      .list {
+        border: 1px solid #e3e5e8;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root"></main>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>
