@@ -1,3 +1,5 @@
+![React Render Wave](./assets/showcase.png)
+
 # React Render Wave
 
 [![npm version](https://img.shields.io/npm/v/react-render-wave)](https://www.npmjs.com/package/react-render-wave)
