@@ -1,9 +1,9 @@
-![React Render Wave](./assets/showcase.png)
+![React Render Wave](https://raw.githubusercontent.com/sudo-ezekiel/react-render-wave/main/assets/showcase.png)
 
 # React Render Wave
 
 [![npm version](https://img.shields.io/npm/v/react-render-wave)](https://www.npmjs.com/package/react-render-wave)
-[![license](https://img.shields.io/npm/l/react-render-wave)](./LICENSE)
+[![license](https://img.shields.io/npm/l/react-render-wave)](https://github.com/sudo-ezekiel/react-render-wave/blob/main/LICENSE)
 
 Progressive wave rendering and lightweight virtual scrolling for React lists.
 
@@ -17,15 +17,15 @@ No dependencies, about 3.7 kB gzipped, ESM and CJS with TypeScript types.
 
 **Docs, recipes and runnable examples: [renderwave.sudo-ezekiel.com](https://renderwave.sudo-ezekiel.com)**
 
-## Status
-
-v3 is not published to npm yet. The registry still serves 2.0.11, which has a
-different hook signature and the old WebAssembly build, so `npm install
-react-render-wave` will not give you anything described below. Until v3 ships:
+## Install
 
 ```bash
-npm install github:sudo-ezekiel/react-render-wave
+npm install react-render-wave
 ```
+
+React 18 or 19 is a peer dependency. v3 is a rewrite and breaks from 2.x in a
+few places, so start at [Upgrading from v2](#upgrading-from-v2) if that is
+where you are coming from.
 
 ## What you get
 
@@ -122,6 +122,39 @@ of the list, so `items[i]` is always defined.
 Full prop tables, defaults and the imperative handle are on the docs site:
 [renderwave.sudo-ezekiel.com/api-reference](https://renderwave.sudo-ezekiel.com/api-reference/).
 
+## Upgrading from v2
+
+Four things break. The rest of the component API carries over unchanged.
+
+**The hook returns an object.** v2 handed back a bare array of indexes.
+
+```diff
+- const indexes = useRenderWave({ length: rows.length });
++ const { indexes } = useRenderWave({ length: rows.length });
+```
+
+**The WebAssembly layer is gone**, along with the exports
+`useVirtualScrollCore`, `initWasm`, `getVisibleIndexesSafe`, `snapToOffsetSafe`
+and `computeScrollTargetSafe`. That math runs in plain JavaScript now, which is
+cheaper than crossing the JS/WASM boundary was. Any `await initWasm()` call can
+go, and if you added `vite-plugin-wasm` or other wasm-aware bundler config for
+this package, you can drop that too.
+
+**Sticky headers no longer style themselves.** The wrapper handles positioning
+only. v2 forced a white background and a bottom border, which broke dark
+themes, so bring your own header styles if you relied on the old look.
+
+**`VirtualRenderWave`'s default `interval` went from 60 ms to 50 ms**, matching
+the hook. Pass `interval={60}` to keep the old cadence.
+
+One fix is worth flagging because it changes what renders: when
+`items.length < batchSize`, v2 called `renderItem(undefined, i)` on the first
+paint. v3 never yields an index past the end of the list, so any `undefined`
+guard inside your `renderItem` is now dead code.
+
+Everything else is in the
+[changelog](https://github.com/sudo-ezekiel/react-render-wave/blob/main/CHANGELOG.md).
+
 ## Local demo
 
 ```bash
@@ -135,7 +168,6 @@ npm run demo
 
 - Horizontal virtualization
 - Table layout with expandable rows
-- Publish v3 to npm
 
 ## Contributing
 
@@ -156,4 +188,4 @@ a tricky bug early on.
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/sudo-ezekiel/react-render-wave/blob/main/LICENSE)

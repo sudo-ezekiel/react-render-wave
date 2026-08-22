@@ -2,7 +2,7 @@
 
 ## 3.0.0 (2026-07-28)
 
-Ground-up rewrite of the internals. The component API stays close to v2; see the migration section in the README for the full list of changes.
+Ground-up rewrite of the internals. The component API stays close to v2; see [Upgrading from v2](./README.md#upgrading-from-v2) in the README for what breaks.
 
 ### Removed
 
@@ -36,7 +36,7 @@ Ground-up rewrite of the internals. The component API stays close to v2; see the
 - `VirtualRenderWave`: `getItemKey`, `onScroll`, `endReachedThreshold`, `ariaLabel`.
 - Handle: `getScrollElement()`, plus a `behavior` parameter for `scrollTo` and `scrollToOffset`.
 - All public types exported from the package root.
-- Test suite (vitest + Testing Library): 41 tests over the cache, the hook, and both components.
+- Test suite (vitest + Testing Library): 42 tests over the cache, the hook, and both components.
 
 ## 2.0.11
 
