@@ -24,8 +24,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["test/setup.ts"],
-    // Agent worktrees hold a full copy of the tree, so the default glob picks
-    // up a second copy of every suite and reports double the tests.
-    exclude: ["node_modules/**", "dist/**", ".claude/**"],
+    // Anchored at the project root on purpose. The default glob is recursive,
+    // so any nested checkout of this repo contributes a second copy of every
+    // suite and the run reports double the tests.
+    include: ["test/**/*.{test,spec}.{ts,tsx}"],
   },
 });

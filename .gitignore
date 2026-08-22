@@ -21,6 +21,7 @@ yarn-error.log*
 # IDE/editor files
 .vscode/
 .idea/
+.claude/
 
 # TypeScript
 *.tsbuildinfo
