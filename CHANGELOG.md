@@ -2,7 +2,7 @@
 
 ## 3.0.0 (2026-07-28)
 
-Ground-up rewrite of the internals. The component API stays close to v2; see [Upgrading from v2](./README.md#upgrading-from-v2) in the README for what breaks.
+Ground-up rewrite of the internals. The component API stays close to v2; the sections below are the full list of what changed.
 
 ### Removed
 
