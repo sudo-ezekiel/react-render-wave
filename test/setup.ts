@@ -53,17 +53,19 @@ afterEach(() => {
   MockResizeObserver.instances = [];
 });
 
-// jsdom does not implement scrollTo. The stub applies the offset and fires a
-// scroll event, mirroring what a real browser does for instant scrolls.
-Element.prototype.scrollTo = function scrollTo(
-  this: Element,
-  options?: ScrollToOptions | number,
-  y?: number
-) {
-  const top =
-    typeof options === "object" && options !== null
-      ? options.top ?? this.scrollTop
-      : y ?? 0;
-  this.scrollTop = top;
-  this.dispatchEvent(new Event("scroll"));
-} as Element["scrollTo"];
+// jsdom has no scrollTo. This stub applies the offset and fires a scroll event.
+// The node environment used by the SSR suites has no Element at all, hence the guard.
+if (typeof Element !== "undefined") {
+  Element.prototype.scrollTo = function scrollTo(
+    this: Element,
+    options?: ScrollToOptions | number,
+    y?: number
+  ) {
+    const top =
+      typeof options === "object" && options !== null
+        ? options.top ?? this.scrollTop
+        : y ?? 0;
+    this.scrollTop = top;
+    this.dispatchEvent(new Event("scroll"));
+  } as Element["scrollTo"];
+}

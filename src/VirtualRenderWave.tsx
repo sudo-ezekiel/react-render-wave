@@ -4,36 +4,36 @@ import React, {
   useEffect,
   useImperativeHandle,
   useInsertionEffect,
-  useLayoutEffect,
+  useMemo,
   useRef,
-  useState,
-  type FC,
   type ReactNode,
   type Ref,
 } from "react";
-import { HeightCache } from "./heightCache";
 import { useRenderWave } from "./useRenderWave";
+import { useViewportReveal } from "./useViewportReveal";
+import { useVirtualWindow } from "./useVirtualWindow";
+import type { ScrollToIndexOptions } from "./useVirtualWindow";
 import type {
   HTMLTag,
   VirtualRenderWaveComponent,
   VirtualRenderWaveHandle,
   VirtualRenderWaveProps,
+  WrapperComponent,
   WrapperProps,
 } from "./types";
 
 const FADE_ANIMATION = "rrw-fade-in";
 
-// useLayoutEffect warns during server rendering, where there is no layout to
-// read anyway.
-const useIsomorphicLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+/** Quiet period after a scroll before snapToBatch aligns the container. */
+const SNAP_DELAY_MS = 150;
 
 let keyframesInjected = false;
 function injectKeyframes(): void {
   if (keyframesInjected || typeof document === "undefined") return;
   const style = document.createElement("style");
   style.setAttribute("data-react-render-wave", "");
-  style.textContent = `@keyframes ${FADE_ANIMATION} { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }`;
+  // Scoped to no-preference so reduced motion needs no JS listener.
+  style.textContent = `@media (prefers-reduced-motion: no-preference) { @keyframes ${FADE_ANIMATION} { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } } }`;
   document.head.appendChild(style);
   keyframesInjected = true;
 }
@@ -48,15 +48,18 @@ function getGroupLabel<T>(
   return value == null ? undefined : String(value);
 }
 
+// createElement, not JSX, so `ref` travels as an ordinary prop on React 18 and 19 alike.
 function renderElement(
-  Component: HTMLTag | FC<WrapperProps>,
+  Component: HTMLTag | WrapperComponent,
   props: WrapperProps
 ): ReactNode {
   if (typeof Component === "string") {
     const { children, ...rest } = props;
     return React.createElement(Component, rest, children);
   }
-  return <Component {...props} />;
+  // The cast keeps one source tree compiling against @types/react 18 and 19.
+  const Fn = Component as (props: WrapperProps) => ReactNode;
+  return React.createElement(Fn, props);
 }
 
 function VirtualRenderWaveInner<T>(
@@ -68,12 +71,15 @@ function VirtualRenderWaveInner<T>(
     interval = 50,
     overscan = 5,
     startIndex = 0,
+    revealMode = "sequential",
     className,
     style,
     renderItem,
     renderSkeleton,
     getItemKey,
     scrollToIndex,
+    initialScrollOffset,
+    initialScrollIndex,
     outerElement,
     innerElement,
     transition = false,
@@ -81,6 +87,7 @@ function VirtualRenderWaveInner<T>(
     onEndReached,
     endReachedThreshold = 10,
     onScroll,
+    onRangeChange,
     keyboardNavigation = false,
     renderStickyHeader,
     groupByKey,
@@ -91,18 +98,6 @@ function VirtualRenderWaveInner<T>(
   const outerRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
 
-  const cacheRef = useRef<HeightCache | null>(null);
-  if (cacheRef.current === null) cacheRef.current = new HeightCache(itemHeight);
-  const cache = cacheRef.current;
-  cache.setDefaultSize(itemHeight);
-  cache.setCount(items.length);
-
-  const [, bumpHeightsVersion] = useState(0);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(containerHeight);
-
-  // Handlers read the latest props through this ref so the scroll listener
-  // only has to be attached once.
   const latest = useRef({
     snapToBatch,
     itemHeight,
@@ -126,177 +121,137 @@ function VirtualRenderWaveInner<T>(
     if (transition) injectKeyframes();
   }, [transition]);
 
-  // ---- dynamic height measurement -----------------------------------------
+  const keyFnRef = useRef(getItemKey);
+  keyFnRef.current = getItemKey;
 
-  const observerRef = useRef<ResizeObserver | null>(null);
-  const elementToIndex = useRef(new Map<Element, number>());
-  const indexToElement = useRef(new Map<number, HTMLElement>());
-  const refCallbacks = useRef(new Map<number, (el: HTMLElement | null) => void>());
+  const keyed = getItemKey !== undefined;
+  const keyFn = useMemo(
+    () =>
+      keyed
+        ? (index: number) => keyFnRef.current!(items[index], index)
+        : undefined,
+    [items, keyed]
+  );
 
-  const getObserver = useCallback(() => {
-    if (observerRef.current) return observerRef.current;
-    if (typeof ResizeObserver === "undefined") return null;
-    observerRef.current = new ResizeObserver((entries) => {
-      const heightCache = cacheRef.current;
-      if (!heightCache) return;
-      let changed = false;
-      for (const entry of entries) {
-        const index = elementToIndex.current.get(entry.target);
-        if (index === undefined) continue;
-        const height = (entry.target as HTMLElement).offsetHeight;
-        if (height > 0 && heightCache.measure(index, height)) changed = true;
-      }
-      if (changed) bumpHeightsVersion((v) => v + 1);
-    });
-    return observerRef.current;
+  const endReachedFiredRef = useRef(false);
+  const snapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkEndReached = useCallback((el: HTMLElement | null) => {
+    if (!el) return;
+    const { onEndReached, endReachedThreshold } = latest.current;
+    if (!onEndReached) return;
+    const atEnd =
+      el.scrollTop + el.clientHeight >= el.scrollHeight - endReachedThreshold;
+    if (atEnd && !endReachedFiredRef.current) {
+      endReachedFiredRef.current = true;
+      onEndReached();
+    } else if (!atEnd) {
+      endReachedFiredRef.current = false;
+    }
   }, []);
+
+  const handleScroll = useCallback(
+    (offset: number) => {
+      latest.current.onScroll?.(offset);
+      checkEndReached(outerRef.current);
+
+      if (!latest.current.snapToBatch) return;
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current);
+      snapTimerRef.current = setTimeout(() => {
+        snapTimerRef.current = null;
+        const el = outerRef.current;
+        if (!el) return;
+        const { itemHeight, batchSize } = latest.current;
+        const batchPx = itemHeight * Math.max(1, batchSize);
+        if (batchPx <= 0) return;
+        const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+        const target = Math.min(
+          Math.round(el.scrollTop / batchPx) * batchPx,
+          maxScroll
+        );
+        if (Math.abs(target - el.scrollTop) > 1) {
+          el.scrollTo({ top: target, behavior: "smooth" });
+        }
+      }, SNAP_DELAY_MS);
+    },
+    [checkEndReached]
+  );
 
   useEffect(() => {
     return () => {
-      observerRef.current?.disconnect();
-      observerRef.current = null;
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current);
     };
   }, []);
 
-  // Ref callbacks are cached per index so React does not detach and reattach
-  // them on every render, which would rebuild the observer registrations.
-  const getItemRef = (index: number) => {
-    let cb = refCallbacks.current.get(index);
-    if (!cb) {
-      cb = (el: HTMLElement | null) => {
-        const prev = indexToElement.current.get(index);
-        if (el) {
-          if (prev === el) return;
-          if (prev) {
-            observerRef.current?.unobserve(prev);
-            elementToIndex.current.delete(prev);
-          }
-          indexToElement.current.set(index, el);
-          elementToIndex.current.set(el, index);
-          getObserver()?.observe(el);
-        } else if (prev) {
-          observerRef.current?.unobserve(prev);
-          elementToIndex.current.delete(prev);
-          indexToElement.current.delete(index);
-        }
-      };
-      refCallbacks.current.set(index, cb);
-    }
-    return cb;
-  };
+  const getScrollElement = useCallback(() => outerRef.current, []);
 
-  // ResizeObserver delivery is asynchronous, and it is missing entirely in
-  // some environments. Measuring after every commit means offsets are right
-  // before the browser paints rather than a frame later; the observer above
-  // then only has to catch resizes that happen without a re-render, such as
-  // an image finishing loading.
-  useIsomorphicLayoutEffect(() => {
-    const heightCache = cacheRef.current;
-    if (!heightCache) return;
-    let changed = false;
-    for (const [index, el] of indexToElement.current) {
-      const height = el.offsetHeight;
-      if (height > 0 && heightCache.measure(index, height)) changed = true;
-    }
-    // measure() only reports true on an actual change, so this settles.
-    if (changed) bumpHeightsVersion((v) => v + 1);
+  const hook = useVirtualWindow({
+    count: items.length,
+    estimateSize: itemHeight,
+    overscan,
+    initialViewportSize: containerHeight,
+    getItemKey: keyFn,
+    getScrollElement,
+    initialScrollOffset,
+    initialScrollIndex: initialScrollIndex ?? scrollToIndex,
+    onScroll: handleScroll,
+    onRangeChange,
   });
 
-  // ---- reveal -------------------------------------------------------------
+  const sequential = revealMode !== "viewport";
 
   const { count: revealedCount } = useRenderWave({
     length: items.length,
     batchSize,
     interval,
     startIndex,
+    enabled: sequential,
   });
   const safeStart = Math.max(0, Math.min(startIndex, items.length));
   const revealedEnd = Math.min(items.length, safeStart + revealedCount);
 
-  // ---- windowing ----------------------------------------------------------
+  const viewportReveal = useViewportReveal({
+    count: items.length,
+    start: hook.start,
+    end: hook.end,
+    batchSize,
+    interval,
+    startIndex,
+    enabled: !sequential,
+    getItemKey: keyFn,
+  });
 
-  const totalHeight = cache.totalSize();
-  const firstVisible = cache.indexAt(scrollTop);
-  const lastVisible = cache.indexAt(scrollTop + Math.max(0, viewportHeight - 1));
-  const start = Math.max(0, firstVisible - overscan);
-  const end = Math.min(items.length, lastVisible + 1 + overscan);
+  const isRevealed = sequential
+    ? (index: number) => index >= safeStart && index < revealedEnd
+    : viewportReveal.isRevealed;
 
-  // ---- scroll, snap, end detection ----------------------------------------
-
-  const endReachedFiredRef = useRef(false);
-
+  const prevItemsLength = useRef(items.length);
   useEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
+    if (prevItemsLength.current !== items.length) {
+      prevItemsLength.current = items.length;
+      endReachedFiredRef.current = false;
+    }
+    checkEndReached(outerRef.current);
+  }, [items.length, hook.viewportSize, hook.totalSize, checkEndReached]);
 
-    let rafId: number | null = null;
-    let snapTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const handleFrame = () => {
-      rafId = null;
-      const top = el.scrollTop;
-      setScrollTop(top);
-      latest.current.onScroll?.(top);
-
-      const { onEndReached, endReachedThreshold } = latest.current;
-      if (onEndReached) {
-        const atEnd =
-          top + el.clientHeight >= el.scrollHeight - endReachedThreshold;
-        if (atEnd && !endReachedFiredRef.current) {
-          endReachedFiredRef.current = true;
-          onEndReached();
-        } else if (!atEnd) {
-          endReachedFiredRef.current = false;
-        }
-      }
-    };
-
-    const handleScroll = () => {
-      if (rafId === null) rafId = requestAnimationFrame(handleFrame);
-
-      if (latest.current.snapToBatch) {
-        if (snapTimer) clearTimeout(snapTimer);
-        snapTimer = setTimeout(() => {
-          const { itemHeight, batchSize } = latest.current;
-          const batchPx = itemHeight * Math.max(1, batchSize);
-          if (batchPx <= 0) return;
-          const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-          const target = Math.min(
-            Math.round(el.scrollTop / batchPx) * batchPx,
-            maxScroll
-          );
-          if (Math.abs(target - el.scrollTop) > 1) {
-            el.scrollTo({ top: target, behavior: "smooth" });
-          }
-        }, 150);
-      }
-    };
-
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    setScrollTop(el.scrollTop);
-
-    return () => {
-      el.removeEventListener("scroll", handleScroll);
-      if (snapTimer) clearTimeout(snapTimer);
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, []);
-
+  const refWarnedRef = useRef(false);
   useEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
-    if (el.clientHeight > 0) setViewportHeight(el.clientHeight);
-    if (typeof ResizeObserver === "undefined") return;
-    const viewportObserver = new ResizeObserver(() => {
-      setViewportHeight(el.clientHeight);
-    });
-    viewportObserver.observe(el);
-    return () => viewportObserver.disconnect();
+    if (refWarnedRef.current) return;
+    refWarnedRef.current = true;
+    if (outerElement && typeof outerElement !== "string" && !outerRef.current) {
+      console.error(
+        "react-render-wave: outerElement did not attach the ref it received, so the list cannot scroll or measure. On React 18 wrap the component in forwardRef and pass the ref to your DOM node."
+      );
+    }
+    if (innerElement && typeof innerElement !== "string" && !innerRef.current) {
+      console.error(
+        "react-render-wave: innerElement did not attach the ref it received, so the list cannot scroll or measure. On React 18 wrap the component in forwardRef and pass the ref to your DOM node."
+      );
+    }
   }, []);
-
-  // ---- keyboard navigation ------------------------------------------------
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
     const el = outerRef.current;
     if (!el) return;
     const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -327,32 +282,50 @@ function VirtualRenderWaveInner<T>(
     el.scrollTo({ top: target, behavior: "smooth" });
   };
 
-  // ---- imperative handle --------------------------------------------------
+  const { start, end } = hook;
+  const scrollIndex = hook.scrollToIndex;
+  const scrollToOffset = hook.scrollToOffset;
+  const getEl = hook.getScrollElement;
 
   useImperativeHandle(
     ref,
     () => ({
-      scrollTo: (index: number, behavior: ScrollBehavior = "smooth") => {
-        outerRef.current?.scrollTo({ top: cache.offsetOf(index), behavior });
+      scrollTo: (
+        index: number,
+        options?: ScrollBehavior | ScrollToIndexOptions
+      ) => {
+        scrollIndex(index, {
+          align: "start",
+          behavior: "smooth",
+          ...(typeof options === "string" ? { behavior: options } : options),
+        });
       },
       scrollToOffset: (px: number, behavior: ScrollBehavior = "smooth") => {
-        outerRef.current?.scrollTo({ top: px, behavior });
+        scrollToOffset(px, { behavior });
       },
       getVisibleIndexes: () => {
         const visible: number[] = [];
         for (let i = start; i < end; i++) {
-          if (i >= safeStart && i < revealedEnd) visible.push(i);
+          if (isRevealed(i)) visible.push(i);
         }
         return visible;
       },
-      getScrollElement: () => outerRef.current,
+      getScrollElement: () => getEl(),
     }),
-    [start, end, safeStart, revealedEnd, cache]
+    [
+      start,
+      end,
+      sequential,
+      safeStart,
+      revealedEnd,
+      viewportReveal.isRevealed,
+      scrollIndex,
+      scrollToOffset,
+      getEl,
+    ]
   );
 
-  // ---- controlled scrollToIndex -------------------------------------------
-
-  const lastScrollToIndexRef = useRef<number | undefined>(undefined);
+  const lastScrollToIndexRef = useRef<number | undefined>(scrollToIndex);
   useEffect(() => {
     if (typeof scrollToIndex !== "number") {
       lastScrollToIndexRef.current = undefined;
@@ -360,30 +333,27 @@ function VirtualRenderWaveInner<T>(
     }
     if (scrollToIndex === lastScrollToIndexRef.current) return;
     lastScrollToIndexRef.current = scrollToIndex;
-    outerRef.current?.scrollTo({ top: cache.offsetOf(scrollToIndex) });
-  }, [scrollToIndex, cache]);
-
-  // ---- render -------------------------------------------------------------
+    scrollIndex(scrollToIndex, { behavior: "auto" });
+  }, [scrollToIndex, scrollIndex]);
 
   let activeGroup: string | undefined;
   if (groupByKey && renderStickyHeader && items.length > 0) {
-    const topIndex = Math.min(cache.indexAt(scrollTop), items.length - 1);
+    const topIndex = Math.min(hook.visibleStart, items.length - 1);
     activeGroup = getGroupLabel(items[topIndex], topIndex, groupByKey);
   }
 
-  const children: ReactNode[] = [];
-  for (let index = start; index < end; index++) {
-    const revealed = index >= safeStart && index < revealedEnd;
-    children.push(
+  const children: ReactNode[] = hook.virtualItems.map((item) => {
+    const revealed = isRevealed(item.index);
+    return (
       <div
-        key={getItemKey ? getItemKey(items[index], index) : index}
-        ref={getItemRef(index)}
+        key={item.key}
+        ref={hook.measureRef(item.index)}
         role="listitem"
         aria-setsize={items.length}
-        aria-posinset={index + 1}
+        aria-posinset={item.index + 1}
         style={{
           position: "absolute",
-          top: cache.offsetOf(index),
+          top: item.offset,
           left: 0,
           right: 0,
           animation:
@@ -393,11 +363,11 @@ function VirtualRenderWaveInner<T>(
         }}
       >
         {revealed
-          ? renderItem(items[index], index)
-          : renderSkeleton?.(index) ?? null}
+          ? renderItem(items[item.index], item.index)
+          : (renderSkeleton?.(item.index) ?? null)}
       </div>
     );
-  }
+  });
 
   return renderElement(outerElement ?? "div", {
     ref: outerRef,
@@ -414,8 +384,6 @@ function VirtualRenderWaveInner<T>(
     children: (
       <>
         {renderStickyHeader && activeGroup !== undefined && (
-          // Positioning only. Give the header its own background, otherwise
-          // rows scroll visibly behind it.
           <div style={{ position: "sticky", top: 0, zIndex: 1 }}>
             {renderStickyHeader(activeGroup)}
           </div>
@@ -425,7 +393,7 @@ function VirtualRenderWaveInner<T>(
           role: "list",
           style: {
             position: "relative",
-            height: totalHeight,
+            height: hook.totalSize,
             width: "100%",
           },
           children,

@@ -1,3 +1,6 @@
+/** Identity of an item, used as the key its measured size is stored under. */
+export type ItemKey = string | number;
+
 /**
  * Prefix-sum cache of item offsets for the virtualizer.
  *
@@ -5,15 +8,22 @@
  * between changes are O(1) for offsets and O(log n) for hit testing, while a
  * measurement update costs one suffix rebuild on the next query.
  *
- * Measured heights persist even after an item unmounts, so scrolling back to
- * a previously measured region never causes layout jumps.
+ * Measured sizes persist even after an item unmounts, so scrolling back to a
+ * previously measured region never causes layout jumps.
+ *
+ * Sizes are stored per key rather than per index. Without a key function the
+ * key is the index itself; with one, a reorder of the data moves each measured
+ * size along with its item. The cost is that a change of key function identity
+ * dirties everything: one O(count) offset rebuild on the next query. Memoize
+ * the key function on the data it closes over.
  */
-export class HeightCache {
+export class SizeCache {
   private offsets: number[] = [0];
-  private measured = new Map<number, number>();
+  private measured = new Map<ItemKey, number>();
   private dirtyFrom = 0;
   private count = 0;
   private defaultSize: number;
+  private keyFn: ((index: number) => ItemKey) | undefined;
 
   constructor(defaultSize: number) {
     this.defaultSize = defaultSize;
@@ -31,17 +41,45 @@ export class HeightCache {
     this.count = count;
   }
 
-  /** Record a measured height. Returns true when the value changed. */
+  /**
+   * Install the key function. Any change of identity means the index to key
+   * mapping may have moved, so every offset is rebuilt on the next query.
+   * Switching the mode (keyed to unkeyed or back) also drops the measurements:
+   * numeric item keys and index keys share one map and must never collide.
+   */
+  setKeyFn(fn: ((index: number) => ItemKey) | undefined): void {
+    if (fn === this.keyFn) return;
+    const modeChanged = (fn === undefined) !== (this.keyFn === undefined);
+    this.keyFn = fn;
+    if (modeChanged) this.measured.clear();
+    this.dirtyFrom = 0;
+  }
+
+  keyOf(index: number): ItemKey {
+    return this.keyFn ? this.keyFn(index) : index;
+  }
+
+  /** Record a measured size for an index. Returns true when the value changed. */
   measure(index: number, size: number): boolean {
     if (index < 0 || index >= this.count) return false;
-    if (this.measured.get(index) === size) return false;
-    this.measured.set(index, size);
+    return this.measureKey(this.keyOf(index), index, size);
+  }
+
+  /**
+   * Record a measured size under a key captured earlier, for measurements that
+   * are delivered after the data may have moved. The index only says where the
+   * offsets have to be rebuilt from.
+   */
+  measureKey(key: ItemKey, index: number, size: number): boolean {
+    if (index < 0 || index >= this.count) return false;
+    if (this.measured.get(key) === size) return false;
+    this.measured.set(key, size);
     this.dirtyFrom = Math.min(this.dirtyFrom, index);
     return true;
   }
 
   sizeOf(index: number): number {
-    return this.measured.get(index) ?? this.defaultSize;
+    return this.measured.get(this.keyOf(index)) ?? this.defaultSize;
   }
 
   /** Pixel offset of the top of the item. offsetOf(count) is the total size. */

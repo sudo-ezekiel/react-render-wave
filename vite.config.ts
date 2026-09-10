@@ -1,6 +1,18 @@
 import { defineConfig } from "vitest/config";
+import dts from "vite-plugin-dts";
 
 export default defineConfig({
+  plugins: [
+    dts({
+      tsconfigPath: "./tsconfig.build.json",
+      // One bundled declaration file, so nothing ships an extensionless
+      // relative import that node16 resolution cannot follow.
+      bundleTypes: true,
+      // The require condition needs its own declaration file, otherwise
+      // node16 reads the ESM declarations as CJS and reports a masquerade.
+      outDirs: ["dist", { dir: "dist", moduleFormat: "cjs" }],
+    }),
+  ],
   build: {
     target: "es2020",
     sourcemap: true,
