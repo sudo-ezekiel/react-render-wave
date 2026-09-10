@@ -44,9 +44,6 @@ export function useRenderWave({
   const batch = Math.max(1, Math.floor(batchSize));
   const safeStart = Math.max(0, Math.min(startIndex, length));
 
-  // The only state is the number of waves committed. Everything else is
-  // derived, so a shrinking or growing `length` can never leave a stale
-  // cursor pointing past the end of the list.
   const [steps, setSteps] = useState(0);
 
   const cursor = Math.min(safeStart + batch * (steps + 1), length);
