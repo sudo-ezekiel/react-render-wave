@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.0 (unreleased)
+## 3.1.0 (2026-09-10)
 
 The windowing engine is now a public hook, `useVirtualWindow`, and `VirtualRenderWave` is built on it. The component API grows by four props and one option object; the one type change that can break a compile is listed under Changed.
 
